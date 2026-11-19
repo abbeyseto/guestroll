@@ -7,6 +7,12 @@ name: Release
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Container image version to publish"
+        required: true
+        type: string
 
 permissions: {}
 
@@ -148,6 +154,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+            type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
 
       # One multi-platform index per registry, from the two digests, under every tag.
       - name: Join the platforms under the tags
@@ -193,6 +200,7 @@ jobs:
   notes:
     name: GitHub release
     needs: image
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
