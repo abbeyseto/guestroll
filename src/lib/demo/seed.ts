@@ -36,7 +36,7 @@ async function addPhotos(eventId: string, count: number, offset: number, challen
     const id = newId();
     await writePhotoFiles(eventId, id, processed.files);
     const guest = GUESTS[(offset + i) % GUESTS.length];
-    insertPhoto({
+    await insertPhoto({
       id,
       eventId,
       guestId: `demo-guest-${(offset + i) % GUESTS.length}`,
@@ -44,6 +44,7 @@ async function addPhotos(eventId: string, count: number, offset: number, challen
       width: processed.width,
       height: processed.height,
       bytes: processed.files.original.length,
+      storedBytes: processed.files.original.length + processed.files.display.length + processed.files.thumb.length,
       status: i % 9 === 4 ? "pending" : "visible",
       challengeId: challengeIds.length && i % 2 === 0 ? challengeIds[i % challengeIds.length] : null,
       analysis: processed.analysis,

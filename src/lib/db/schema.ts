@@ -57,6 +57,8 @@ export const events = sqliteTable("events", {
   sharedAlbum: text("shared_album", { enum: ["off", "during", "after"] }).notNull().default("off"),
   /** Secret of the photo booth link (`/e/<slug>/booth?key=`); null when the booth is off. A new one revokes the old link. */
   boothKey: text("booth_key"),
+  /** Actual bytes occupied by this event's photo variants; null until a legacy event is reconciled once. */
+  storedBytes: integer("stored_bytes"),
   /** Set once the end-of-event automation ran: it never runs twice for the same event. */
   endedAt: integer("ended_at"),
   createdAt: integer("created_at").notNull().default(now),
@@ -74,6 +76,8 @@ export const photos = sqliteTable(
     width: integer("width").notNull(),
     height: integer("height").notNull(),
     bytes: integer("bytes").notNull(),
+    /** Original, display and thumbnail bytes written for this photo. */
+    storedBytes: integer("stored_bytes").notNull(),
     /**
      * Null for a photo. For a video, its container: the `original` file is then
      * the video itself (see `photoKey`), `display` and `thumb` its poster frame.

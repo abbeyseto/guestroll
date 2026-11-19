@@ -227,7 +227,7 @@ async function receiveVideo(
     const id = newId();
     await writeVideoFiles(event.id, id, video.mediaType, poster.files, upload.path);
     try {
-      const photo = insertPhoto({
+      const photo = await insertPhoto({
         id,
         eventId: event.id,
         guestId,
@@ -235,6 +235,7 @@ async function receiveVideo(
         width: poster.width,
         height: poster.height,
         bytes: upload.bytes,
+        storedBytes: upload.bytes + poster.files.display.length + poster.files.thumb.length,
         mediaType: video.mediaType,
         durationMs: video.durationMs,
         status: event.moderation === "pre" ? "pending" : "visible",
@@ -264,7 +265,7 @@ async function store(
   const id = newId();
   await writePhotoFiles(event.id, id, processed.files);
   try {
-    const photo = insertPhoto({
+    const photo = await insertPhoto({
       id,
       eventId: event.id,
       guestId,
@@ -272,6 +273,7 @@ async function store(
       width: processed.width,
       height: processed.height,
       bytes: processed.files.original.length,
+      storedBytes: processed.files.original.length + processed.files.display.length + processed.files.thumb.length,
       status: event.moderation === "pre" ? "pending" : "visible",
       challengeId,
       spotId,

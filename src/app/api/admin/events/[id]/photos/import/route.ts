@@ -42,7 +42,7 @@ export async function POST(request: Request, { params }: RouteContext<"/api/admi
   const id = newId();
   await writePhotoFiles(event.id, id, processed.files);
   try {
-    const photo = insertPhoto({
+    const photo = await insertPhoto({
       id,
       eventId: event.id,
       // One pseudo-guest per admin account: their imports group together in stats and the ZIP names.
@@ -51,6 +51,7 @@ export async function POST(request: Request, { params }: RouteContext<"/api/admi
       width: processed.width,
       height: processed.height,
       bytes: processed.files.original.length,
+      storedBytes: processed.files.original.length + processed.files.display.length + processed.files.thumb.length,
       status: "visible",
       analysis: processed.analysis,
     });
