@@ -200,14 +200,14 @@ function hashCode(code: string | null | undefined): string | null | undefined {
   return code === null ? null : bcrypt.hashSync(code, 10);
 }
 
-export function createEvent(input: Partial<EventInput> & { name: string }): EventRow {
+export function createEvent(input: Partial<EventInput> & { id?: string; name: string }): EventRow {
   const { accessCode, ...rest } = input;
   return getDb()
     .insert(events)
     .values({
       captureMode: config.defaultCaptureMode,
       ...rest,
-      id: newId(),
+      id: input.id ?? newId(),
       storedBytes: 0,
       slug: eventSlug(input.name),
       accessCodeHash: hashCode(accessCode) ?? null,
