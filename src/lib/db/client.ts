@@ -57,6 +57,9 @@ export function getDb(): Db {
   if (!globalForDb.guestrollDb) {
     globalForDb.guestrollDb = open();
     migratedThisModule = true;
+    void import("@/lib/storage/accounting")
+      .then(({ reconcileLegacyEventStorage }) => reconcileLegacyEventStorage())
+      .catch(() => undefined);
   } else if (!migratedThisModule) {
     // Dev hot reload keeps the handle but brings new code: apply migrations
     // added since the server started (a no-op when there are none).

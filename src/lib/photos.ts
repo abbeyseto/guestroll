@@ -2,7 +2,7 @@ import "server-only";
 import { and, count, desc, eq, inArray, isNotNull, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { blurryThreshold, findDuplicate, type Analysis } from "@/lib/images/analysis";
 import { getDb } from "@/lib/db/client";
-import { photos, type EventRow, type PhotoRow } from "@/lib/db/schema";
+import { events, photos, type EventRow, type PhotoRow } from "@/lib/db/schema";
 import { isEventAdmin, type Viewer } from "@/lib/policy";
 import { deletePhotoFiles } from "@/lib/storage/files";
 
@@ -57,7 +57,8 @@ export function getPhoto(id: string): PhotoRow | undefined {
   return getDb().select().from(photos).where(eq(photos.id, id)).get();
 }
 
-type NewPhoto = Omit<PhotoRow, "downloads" | "createdAt" | "favorite" | "challengeId" | "spotId" | "sharpness" | "hash" | "duplicateOf" | "mediaType" | "durationMs"> & {
+type NewPhoto = Omit<PhotoRow, "downloads" | "createdAt" | "favorite" | "challengeId" | "spotId" | "sharpness" | "hash" | "duplicateOf" | "mediaType" | "durationMs" | "storedBytes"> & {
+  storedBytes?: number;
   mediaType?: PhotoRow["mediaType"];
   durationMs?: number | null;
   challengeId?: string | null;
@@ -66,13 +67,21 @@ type NewPhoto = Omit<PhotoRow, "downloads" | "createdAt" | "favorite" | "challen
 };
 
 /** With an analysis, the photo is checked against the event's earlier ones for a duplicate. */
-export function insertPhoto({ analysis, ...photo }: NewPhoto): PhotoRow {
+export function insertPhoto({ analysis, storedBytes, ...photo }: NewPhoto): PhotoRow {
   const duplicateOf = analysis ? findDuplicate(analysis.hash, analysedPhotos(photo.eventId)) : null;
-  return getDb()
-    .insert(photos)
-    .values({ ...photo, sharpness: analysis?.sharpness ?? null, hash: analysis?.hash ?? null, duplicateOf })
-    .returning()
-    .get();
+  return getDb().transaction((tx) => {
+    const inserted = tx
+      .insert(photos)
+      .values({ ...photo, storedBytes: storedBytes ?? photo.bytes, sharpness: analysis?.sharpness ?? null, hash: analysis?.hash ?? null, duplicateOf })
+      .returning()
+      .get();
+    tx
+      .update(events)
+      .set({ storedBytes: sql`coalesce(${events.storedBytes}, 0) + ${storedBytes ?? photo.bytes}` })
+      .where(eq(events.id, photo.eventId))
+      .run();
+    return inserted;
+  });
 }
 
 /** The event's analysed photos, oldest first: a duplicate points at the first of its kind. */
@@ -176,11 +185,22 @@ export function setPhotoStatus(ids: string[], eventId: string, status: PhotoRow[
 
 export async function deletePhotos(ids: string[], eventId: string): Promise<number> {
   if (ids.length === 0) return 0;
-  const deleted = getDb()
-    .delete(photos)
-    .where(and(eq(photos.eventId, eventId), inArray(photos.id, ids)))
-    .returning({ id: photos.id })
-    .all();
+  const deleted = getDb().transaction((tx) => {
+    const removed = tx
+      .delete(photos)
+      .where(and(eq(photos.eventId, eventId), inArray(photos.id, ids)))
+      .returning({ id: photos.id, storedBytes: photos.storedBytes })
+      .all();
+    const released = removed.reduce((total, photo) => total + photo.storedBytes, 0);
+    if (released) {
+      tx
+        .update(events)
+        .set({ storedBytes: sql`max(0, ${events.storedBytes} - ${released})` })
+        .where(eq(events.id, eventId))
+        .run();
+    }
+    return removed;
+  });
   await Promise.all(deleted.map((p) => deletePhotoFiles(eventId, p.id)));
   return deleted.length;
 }
@@ -206,11 +226,21 @@ export function countFavorites(eventId: string): number {
 
 /** Only the guest who took it: the row is matched on event, photo AND guest. */
 export async function deleteGuestPhoto(photoId: string, eventId: string, guestId: string): Promise<boolean> {
-  const deleted = getDb()
-    .delete(photos)
-    .where(and(eq(photos.id, photoId), eq(photos.eventId, eventId), eq(photos.guestId, guestId)))
-    .returning({ id: photos.id })
-    .get();
+  const deleted = getDb().transaction((tx) => {
+    const removed = tx
+      .delete(photos)
+      .where(and(eq(photos.id, photoId), eq(photos.eventId, eventId), eq(photos.guestId, guestId)))
+      .returning({ id: photos.id, storedBytes: photos.storedBytes })
+      .get();
+    if (removed) {
+      tx
+        .update(events)
+        .set({ storedBytes: sql`max(0, ${events.storedBytes} - ${removed.storedBytes})` })
+        .where(eq(events.id, eventId))
+        .run();
+    }
+    return removed;
+  });
   if (deleted) await deletePhotoFiles(eventId, deleted.id);
   return Boolean(deleted);
 }

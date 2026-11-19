@@ -108,6 +108,7 @@ export interface EventSummary extends AdminEvent {
   photoCount: number;
   pendingCount: number;
   bytes: number;
+  storedBytes: number;
   acceptingUploads: boolean;
 }
 
@@ -157,6 +158,7 @@ function summarize(rows: EventRow[]): EventSummary[] {
       photoCount: s?.photoCount ?? 0,
       pendingCount: s?.pendingCount ?? 0,
       bytes: s?.bytes ?? 0,
+      storedBytes: event.storedBytes ?? s?.bytes ?? 0,
       acceptingUploads: event.uploadsOpen && (event.uploadsCloseAt === null || event.uploadsCloseAt > now),
     };
   });
@@ -206,6 +208,7 @@ export function createEvent(input: Partial<EventInput> & { name: string }): Even
       captureMode: config.defaultCaptureMode,
       ...rest,
       id: newId(),
+      storedBytes: 0,
       slug: eventSlug(input.name),
       accessCodeHash: hashCode(accessCode) ?? null,
     })

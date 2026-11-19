@@ -127,6 +127,13 @@
       "when": 1792240801284,
       "tag": "0017_videos",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1795083568594,
+      "tag": "0018_stored_photo_bytes",
+      "breakpoints": true
     }
   ]
 }
